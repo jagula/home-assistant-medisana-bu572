@@ -2,7 +2,7 @@
 from __future__ import annotations
 import asyncio,time,logging
 from copy import deepcopy
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 from bleak_retry_connector import BleakClientWithServiceCache,establish_connection
 from homeassistant.components import bluetooth
@@ -10,6 +10,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_ADDRESS
 from homeassistant.core import HomeAssistant,callback
 from homeassistant.helpers.storage import Store
+from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import dt as dt_util
 from .const import *
 _LOGGER=logging.getLogger(__name__)
@@ -52,7 +53,7 @@ def parse_bp(data:bytes):
 
 class MedisanaBU572Coordinator:
     def __init__(self,hass:HomeAssistant,entry:ConfigEntry):
-        self.hass=hass; self.entry=entry; self.address=entry.data[CONF_ADDRESS].upper(); self.data={'battery':None,'rssi':None,'last_user':None,'last_sync':None,'users':{'1':{},'2':{}},'history':{'1':[],'2':[]}}; self._listeners=[]; self._cancel=None; self._lock=asyncio.Lock(); self._task=None; self._store=Store(hass,1,f"{DOMAIN}.{entry.entry_id}"); self._event=asyncio.Event(); self._last_pkt=0.0; self._count=0; self._auto_task=None; self._last_auto_sync=0.0; self._auto_cooldown=45.0
+        self.hass=hass; self.entry=entry; self.address=entry.data[CONF_ADDRESS].upper(); self.data={'battery':None,'rssi':None,'last_user':None,'last_sync':None,'users':{'1':{},'2':{}},'history':{'1':[],'2':[]}}; self._listeners=[]; self._cancel=None; self._lock=asyncio.Lock(); self._task=None; self._store=Store(hass,1,f"{DOMAIN}.{entry.entry_id}"); self._event=asyncio.Event(); self._last_pkt=0.0; self._count=0; self._auto_unsub=None; self._last_auto_sync=0.0; self._auto_cooldown=45.0
     async def async_setup(self):
         saved=await self._store.async_load()
         if isinstance(saved,dict): self.data.update(saved)
@@ -63,15 +64,21 @@ class MedisanaBU572Coordinator:
             self._notify()
             self._auto_schedule('advertisement')
         self._cancel=bluetooth.async_register_callback(self.hass,found,{'address':self.address},bluetooth.BluetoothScanningMode.ACTIVE,replay=bluetooth.BluetoothCallbackReplay.NEWEST_FIRST,scan_interval=60.0,scan_duration=10.0)
-        self._auto_task=self.entry.async_create_background_task(
-            self.hass, self._auto_watch(), f"{DOMAIN}_{self.address}_auto_watch"
+        @callback
+        def auto_watch(_now):
+            if bluetooth.async_address_present(self.hass, self.address, connectable=True):
+                self._auto_schedule('presence poll')
+
+        self._auto_unsub = async_track_time_interval(
+            self.hass, auto_watch, timedelta(seconds=10)
         )
         if bluetooth.async_address_present(self.hass,self.address,connectable=True):
             self._auto_schedule('startup presence')
     async def async_shutdown(self):
         if self._cancel:self._cancel();self._cancel=None
         if self._task and not self._task.done():self._task.cancel()
-        if self._auto_task and not self._auto_task.done():self._auto_task.cancel()
+        if self._auto_unsub:
+            self._auto_unsub(); self._auto_unsub=None
     @callback
     def async_add_listener(self,l):
         self._listeners.append(l)
@@ -94,17 +101,6 @@ class MedisanaBU572Coordinator:
             return
         self._last_auto_sync=now
         self._schedule()
-
-    async def _auto_watch(self):
-        # HA can retain a device in its Bluetooth manager without generating a
-        # fresh callback. Poll connectable presence so wake-ups still trigger sync.
-        try:
-            while True:
-                await asyncio.sleep(10)
-                if bluetooth.async_address_present(self.hass,self.address,connectable=True):
-                    self._auto_schedule('presence poll')
-        except asyncio.CancelledError:
-            raise
 
     @callback
     def _schedule(self):
