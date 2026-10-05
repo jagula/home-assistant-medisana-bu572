@@ -1,7 +1,7 @@
 {
   "domain": "medisana_bu572",
   "name": "Medisana BU 572",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "config_flow": true,
   "documentation": "https://github.com/jagula/home-assistant-medisana-bu572",
   "dependencies": [
