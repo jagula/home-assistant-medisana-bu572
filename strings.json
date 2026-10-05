@@ -1,5 +1,0 @@
-{
-  "title":"Medisana BU 572",
-  "config":{"step":{"user":{"title":"Medisana BU 572 einrichten","description":"Wähle ein erkanntes BU 572 oder gib seine Bluetooth-MAC-Adresse ein.","data":{"address":"Bluetooth-MAC-Adresse"}},"confirm":{"title":"Medisana BU 572 hinzufügen","description":"Möchtest du das erkannte Gerät {name} hinzufügen?"}},"abort":{"already_configured":"Dieses BU 572 ist bereits eingerichtet."}},
-  "entity":{"sensor":{"battery":{"name":"Batterie"},"rssi":{"name":"Bluetooth RSSI"},"last_user":{"name":"Letzter Benutzer"},"systolic":{"name":"Benutzer {user} Systolisch"},"diastolic":{"name":"Benutzer {user} Diastolisch"},"map":{"name":"Benutzer {user} Mittlerer arterieller Druck"},"pulse":{"name":"Benutzer {user} Puls"},"measurement_time":{"name":"Benutzer {user} Messzeit"},"status":{"name":"Benutzer {user} Messstatus"}},"button":{"sync":{"name":"Synchronisieren"}}}
-}
